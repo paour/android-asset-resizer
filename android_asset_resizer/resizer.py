@@ -16,7 +16,8 @@ DENSITY_MAP = {
 
 class AssetResizer():
     def __init__(self, out, source_density='xhdpi', prefix='', ldpi=False,
-            xxxhdpi=False, image_filter=Image.ANTIALIAS, image_quality=None):
+            xxxhdpi=False, image_filter=Image.ANTIALIAS, image_quality=None,
+            premult=False):
         if source_density not in DENSITY_TYPES:
             raise ValueError('source_density must be one of %s' % str(DENSITY_TYPES))
 
@@ -27,6 +28,7 @@ class AssetResizer():
         self.xxxhdpi = xxxhdpi
         self.image_filter = image_filter
         self.image_quality = image_quality
+        self.premult = premult
 
     def mkres(self):
         """
@@ -102,5 +104,35 @@ class AssetResizer():
             else:
                 size = (self.get_size_for_density(w, d),
                         self.get_size_for_density(h, d))
-                im.resize(size, self.image_filter).save(out_file,
-                        quality=self.image_quality)
+
+                if self.premult:
+                    premultiply(im)
+
+                im = im.resize(size, self.image_filter)
+
+                if self.premult:
+                    unmultiply(im)
+
+                im.save(out_file, quality=self.image_quality)
+
+def premultiply(im):
+    pixels = im.load()
+    for y in range(im.size[1]):
+        for x in range(im.size[0]):
+            r, g, b, a = pixels[x, y]
+            if a != 255:
+                r = r * a // 255
+                g = g * a // 255
+                b = b * a // 255
+                pixels[x, y] = (r, g, b, a)
+
+def unmultiply(im):
+    pixels = im.load()
+    for y in range(im.size[1]):
+        for x in range(im.size[0]):
+            r, g, b, a = pixels[x, y]
+            if a != 255 and a != 0:
+                r = 255 if r >= a else 255 * r // a
+                g = 255 if g >= a else 255 * g // a
+                b = 255 if b >= a else 255 * b // a
+                pixels[x, y] = (r, g, b, a)

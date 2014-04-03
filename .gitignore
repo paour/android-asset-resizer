@@ -2,3 +2,7 @@
 *.egg-info
 dist
 build
+/.idea
+*.iml
+bin/__init__.py
+bin/aaresize.py
