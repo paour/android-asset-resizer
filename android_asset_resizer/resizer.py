@@ -89,6 +89,12 @@ class AssetResizer():
         # Get the original image size
         w, h = im.size
 
+        if self.premult:
+            im_premultiplied = im.copy()
+            premultiply(im_premultiplied)
+        else:
+            im_premultiplied = im
+
         # Generate assets from the source image
         for d in DENSITY_TYPES:
             if d == 'ldpi' and not self.ldpi:
@@ -105,15 +111,12 @@ class AssetResizer():
                 size = (self.get_size_for_density(w, d),
                         self.get_size_for_density(h, d))
 
-                if self.premult:
-                    premultiply(im)
-
-                im = im.resize(size, self.image_filter)
+                im_resized = im_premultiplied.resize(size, self.image_filter)
 
                 if self.premult:
-                    unmultiply(im)
+                    unmultiply(im_resized)
 
-                im.save(out_file, quality=self.image_quality)
+                im_resized.save(out_file, quality=self.image_quality)
 
 def premultiply(im):
     pixels = im.load()
