@@ -136,6 +136,8 @@ def main():
             help='disable experimental multiprocessing support and process images serially')
     parser.add_argument('--quiet', action='store_true',
             help='suppress all output except for errors')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='verbose output')
     parser.add_argument('--version', action='version',
             version='%(prog)s {v}'.format(v=__version__))
     parser.add_argument('pattern', nargs='+',
@@ -184,6 +186,7 @@ def main():
     resizer.prefix = args.prefix
     resizer.image_filter = PIL_FILTER_MAP.get(args.filter)
     resizer.image_quality = args.quality
+    if args.verbose and not args.quiet: resizer.uprint = uprint
 
     # Make our resource directories
     resizer.mkres()
