@@ -136,6 +136,8 @@ def main():
             help='disable experimental multiprocessing support and process images serially')
     parser.add_argument('--quiet', action='store_true',
             help='suppress all output except for errors')
+    parser.add_argument('-v', '--verbose', action='store_true',
+            help='verbose output')
     parser.add_argument('--premult', action='store_true',
             help='use pre-multiplied alpha to prevent halos around images when using alpha'
                  ' (a bit slower and very slight loss of fidelity)')
@@ -188,6 +190,7 @@ def main():
     resizer.image_filter = PIL_FILTER_MAP.get(args.filter)
     resizer.image_quality = args.quality
     resizer.premult = args.premult
+    if args.verbose and not args.quiet: resizer.uprint = uprint
 
     # Make our resource directories
     resizer.mkres()
