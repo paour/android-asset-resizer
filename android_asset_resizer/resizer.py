@@ -2,7 +2,7 @@ import os
 import re
 from PIL import Image
 
-
+AUTO_DENSITY = 'auto'
 DENSITY_TYPES = ('ldpi', 'mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')
 DENSITY_MAP = {
     'ldpi': float(3),
@@ -14,11 +14,12 @@ DENSITY_MAP = {
 }
 
 
-class AssetResizer():
+# noinspection PyIncorrectDocstring
+class AssetResizer:
     def __init__(self, out, source_density='xhdpi', prefix='', ldpi=False,
-            xxxhdpi=False, image_filter=Image.ANTIALIAS, image_quality=None,
-            uprint=None,
-            premult=False):
+                 xxxhdpi=False, image_filter=Image.ANTIALIAS, image_quality=None,
+                 uprint=None,
+                 premult=False):
         if source_density not in DENSITY_TYPES:
             raise ValueError('source_density must be one of %s' % str(DENSITY_TYPES))
 
@@ -54,17 +55,18 @@ class AssetResizer():
         """
         return os.path.join(self.out, 'res/drawable-%s' % target_density)
 
-    def get_size_for_density(self, size, target_density):
+    def get_size_for_density(self, size, source_density, target_density):
         """
         Return the new image size for the target density
         """
         current_size = size
-        current_density = DENSITY_MAP[self.source_density]
+        current_density = DENSITY_MAP[source_density]
         target_density = DENSITY_MAP[target_density]
 
         return int(current_size * (target_density / current_density))
 
-    def get_safe_filename(self, filename):
+    @staticmethod
+    def get_safe_filename(filename):
         """
         Return a sanitized image filename
         """
@@ -76,13 +78,23 @@ class AssetResizer():
         """
         return self.resize_image(path, Image.open(path))
 
+    def determine_density(self, path):
+        """
+        Determine the probable density for the file
+        """
+        for d in DENSITY_TYPES:
+            if path == 'res/drawable-%s' % d:
+                return d
+
+        raise ValueError("Couldn't resolve the density")
+
     def resize_image(self, path, im):
         """
         Generate assets from the given image and path in case you've already
         called Image.open
         """
         # Get the original filename
-        _, filename = os.path.split(path)
+        parent, filename = os.path.split(path)
 
         # Generate the new filename
         filename = self.get_safe_filename(filename)
@@ -97,6 +109,11 @@ class AssetResizer():
         else:
             im_premultiplied = im
 
+        if self.source_density == AUTO_DENSITY:
+            actual_source_density = self.determine_density(parent)
+        else:
+            actual_source_density = self.source_density
+
         # Generate assets from the source image
         for d in DENSITY_TYPES:
             if d == 'ldpi' and not self.ldpi:
@@ -105,15 +122,16 @@ class AssetResizer():
                 continue  # skip xxxhdpi
 
             out_file = os.path.join(self.out,
-                    self.get_out_for_density(d), filename)
+                                    self.get_out_for_density(d), filename)
 
-            if d == self.source_density:
+            if d == actual_source_density:
                 im.save(out_file, quality=self.image_quality)
 
-                if self.uprint: self.uprint("Saved same size to %s" % out_file)
+                if self.uprint:
+                    self.uprint("Saved same size to %s" % out_file)
             else:
-                size = (self.get_size_for_density(w, d),
-                        self.get_size_for_density(h, d))
+                size = (self.get_size_for_density(w, actual_source_density, d),
+                        self.get_size_for_density(h, actual_source_density, d))
 
                 im_resized = im_premultiplied.resize(size, self.image_filter)
 
@@ -122,7 +140,8 @@ class AssetResizer():
 
                 im_resized.save(out_file, quality=self.image_quality)
 
-                if self.uprint: self.uprint("Resized as %s to %s" % (d, out_file))
+                if self.uprint:
+                    self.uprint("Resized as %s to %s" % (d, out_file))
 
 def premultiply(im):
     pixels = im.load()
