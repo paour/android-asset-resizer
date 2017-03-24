@@ -1,6 +1,9 @@
 android-asset-resizer
 =====================
 
+.. image:: https://img.shields.io/pypi/dm/android-asset-resizer.svg
+    :target: https://pypi.python.org/pypi/android-asset-resizer
+
 The Android asset resizer can be used to generate drawable assets from a larger
 source image, like an iOS ``@2x`` asset or an ``xhdpi`` drawable.
 
@@ -21,6 +24,13 @@ Installing
 ::
 
     $ pip install android-asset-resizer
+
+If you'd like to use the pillow imaging library instead of PIL you can install
+the script with this command:
+
+::
+
+    $ pip install --no-deps android-asset-resizer && pip install pillow
 
 Examples
 --------
@@ -105,17 +115,6 @@ own scripts:
     # Resize an image
     resizer.resize(path)
 
-Publishing
-----------
-
-::
-
-    # Register with pypi (only done once)
-    $ python setup.py register
-
-    # Upload a new source distribution to pypi
-    $ python setup.py sdist upload
-
 Bug reports
 -----------
 
@@ -125,7 +124,22 @@ If you encounter any issues, please open a new issue on the project's
 License
 -------
 
-See the LICENSE_ file.
+::
+
+    Copyright 2013 Tristan Waddington
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
 
 .. _Gittip donation: https://www.gittip.com/twaddington/
 .. _LICENSE: https://github.com/twaddington/android-asset-resizer/blob/master/LICENSE 

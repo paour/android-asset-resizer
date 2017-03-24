@@ -1,17 +1,16 @@
 #!/usr/bin/python
 
+import argparse
 import os
 import sys
-import argparse
 import time
-
-from glob import glob
 from PIL import Image
+from glob import glob
 
 from android_asset_resizer import __version__
-from android_asset_resizer.resizer import AssetResizer
+from android_asset_resizer.resizer import AssetResizer, AUTO_DENSITY
 
-SOURCE_DENSITY_CHOICES = ('xxxhdpi', 'xxhdpi', 'xhdpi',)
+SOURCE_DENSITY_CHOICES = ('xxxhdpi', 'xxhdpi', 'xhdpi', AUTO_DENSITY,)
 PIL_FILTER_CHOICES = ('NEAREST', 'BILINEAR', 'BICUBIC', 'ANTIALIAS')
 PIL_FILTER_MAP = {
     'NEAREST': Image.NEAREST,
@@ -19,8 +18,9 @@ PIL_FILTER_MAP = {
     'BICUBIC': Image.BICUBIC,
     'ANTIALIAS': Image.ANTIALIAS
 }
+PIL_VERIFIED_IMAGE_MODES = ('RGB', 'RGBA')
 
-DEFAULT_DENSITY = 'xhdpi'
+DEFAULT_DENSITY = AUTO_DENSITY
 DEFAULT_FILTER = 'ANTIALIAS'
 DEFAULT_QUALITY = 85
 DEFAULT_OUT_PATH = os.getcwd()
@@ -44,6 +44,7 @@ try:
 except ImportError:
     legacy = True
 
+
 def uprint(msg, newline=True, quiet=False):
     """
     Unbuffered print.
@@ -51,6 +52,7 @@ def uprint(msg, newline=True, quiet=False):
     if not quiet:
         sys.stdout.write("%s%s" % (msg, "\n" if newline else ''))
         sys.stdout.flush()
+
 
 def onComplete(filename):
     """
@@ -63,8 +65,6 @@ def onComplete(filename):
     global count
     count += 1
 
-    # Indicate the file was finished processing
-    uprint('Processed: %s' % filename, quiet=quiet)
 
 def doWork(resizer, path):
     """
@@ -77,11 +77,25 @@ def doWork(resizer, path):
 
     if filename.endswith(NINE_PATCH_EXT):
         uprint("Skipping: %s!\n"
-                "  Nine-patch resizing not supported." % filename, quiet=quiet)
+               "  Nine-patch resizing not supported." % filename, quiet=quiet)
         return  # skip to the next file
 
     try:
-        resizer.resize(path)
+        im = Image.open(path)
+
+        # Warn on unusual Image modes
+        if im.mode not in PIL_VERIFIED_IMAGE_MODES:
+            msg = ("\n  Error: This file uses the '{mode}' Image mode."
+                   "\n         Resizing this image will cause unpredictable results."
+                   "\n         This is probably not what you want."
+                   "\n         Try again after exporting your image using the RGB or RGBA mode.").format(mode=im.mode)
+            uprint("Warning: %s%s" % (filename, msg), quiet=quiet)
+
+        # Resize the image
+        resizer.resize_image(path, im)
+
+        # Indicate the file was finished processing
+        uprint('Processed: %s' % filename, quiet=quiet)
 
         # The file was successfully resized
         return filename
@@ -91,42 +105,45 @@ def doWork(resizer, path):
         else:
             uprint("Failed: %s\n  Error %s: %s" % (filename, e.errno, e.strerror))
 
+
 def main():
     # Start the clock
     start = time.time()
 
     # Create our parser
     parser = argparse.ArgumentParser(prog='Android Asset Resizer',
-            description='Resize image assets for an Android project')
+                                     description='Resize image assets for an Android project')
 
     # Set up our command-line arguments
     parser.add_argument('-d', '--density', default=DEFAULT_DENSITY, choices=SOURCE_DENSITY_CHOICES,
-            help='the density of the source images')
+                        help='the density of the source images')
     parser.add_argument('-p', '--prefix',
-            help='a prefix to add to the filename')
+                        help='a prefix to add to the filename')
     parser.add_argument('-f', '--filter', default=DEFAULT_FILTER, choices=PIL_FILTER_CHOICES,
-            help='the image filter to use')
+                        help='the image filter to use')
     parser.add_argument('-q', '--quality', type=int, default=DEFAULT_QUALITY,
-            help='the image quality to use when resizing jpeg images')
+                        help='the image quality to use when resizing jpeg images')
     parser.add_argument('-o', '--out',
-            help='the path to the output directory')
+                        help='the path to the output directory')
     parser.add_argument('-l', '--ldpi', action='store_true',
-            help='generate ldpi assets')
+                        help='generate ldpi assets')
     parser.add_argument('-x', '--xxxhdpi', action='store_true',
-            help='generate xxxhdpi assets')
+                        help='generate xxxhdpi assets')
     parser.add_argument('-e', '--exclude',
-            help='comma-separated list of filenames to be excluded from resizing')
+                        help='comma-separated list of filenames to be excluded from resizing')
     parser.add_argument('--legacy', action='store_true',
-            help='disable experimental multiprocessing support and process images serially')
+                        help='disable experimental multiprocessing support and process images serially')
     parser.add_argument('--quiet', action='store_true',
-            help='suppress all output except for errors')
+                        help='suppress all output except for errors')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='verbose output')
     parser.add_argument('--premult', action='store_true',
-            help='use pre-multiplied alpha to prevent halos around images when using alpha'
-                 ' (a bit slower and very slight loss of fidelity)')
+                        help='use pre-multiplied alpha to prevent halos around images when using alpha'
+                             ' (a bit slower and very slight loss of fidelity)')
     parser.add_argument('--version', action='version',
-            version='%(prog)s {v}'.format(v=__version__))
+                        version='%(prog)s {v}'.format(v=__version__))
     parser.add_argument('pattern', nargs='+',
-            help='the path to the source images (supports wildcards)')
+                        help='the path to the source images (supports wildcards)')
 
     # Get our arguments
     args = parser.parse_args()
@@ -156,6 +173,7 @@ def main():
         out_dir = DEFAULT_OUT_PATH
 
     # Create the output directory if necessary
+    # noinspection PyUnusedLocal
     try:
         os.makedirs(out_dir, DEFAULT_OUT_MODE)
     except OSError as e:
@@ -172,6 +190,7 @@ def main():
     resizer.image_filter = PIL_FILTER_MAP.get(args.filter)
     resizer.image_quality = args.quality
     resizer.premult = args.premult
+    if args.verbose and not args.quiet: resizer.uprint = uprint
 
     # Make our resource directories
     resizer.mkres()
@@ -187,7 +206,10 @@ def main():
     for p in args.pattern:
         for path in glob(p):
             if not legacy:
-                pool.apply_async(doWork, [resizer, path], callback=onComplete)
+                result = pool.apply_async(doWork, [resizer, path], callback=onComplete)
+
+                # Forces any exception raised by the remote call to be reraised
+                result.get()
             else:
                 onComplete(doWork(resizer, path))
 
@@ -209,7 +231,8 @@ def main():
         elapsed = round((time.time() - start), 3)
 
         uprint('Resized {count} asset{plural} in {elapsed}s'.format(count=count,
-                plural=pluralize, elapsed=elapsed), quiet=quiet)
+                                                                    plural=pluralize, elapsed=elapsed), quiet=quiet)
+
 
 if __name__ == '__main__':
     try:
